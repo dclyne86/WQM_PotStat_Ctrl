@@ -96,7 +96,7 @@ boolean PS_Present = false; //PotStat Shield Present
 // VCC  <-->  3.3V
 // GND  <-->  GND
 // TxD  <-->  pin D2
-// RxD  <-->  pin D3  
+// RxD  <-->  pin D3
 SoftwareSerial Serial_BT(2,3);
 
 // WQM Variables
@@ -109,6 +109,7 @@ float voltage_pH = 0.0; //Voltage in mV
 float current_Cl = 0.0; //Current in nA
 float temperature = 0.0; //Temperature in deg. C
 float V_temp = 0.0; //Voltage for temperature calculation
+float voltage_alkalinity = 0.0; //Voltage for temperature calculation
 
 //Current time in seconds since start of free Cl measurement collection (milliseconds)
 long switchTimeACC = 0;
@@ -144,7 +145,7 @@ unsigned long tExpStart = 0; // experiment start time
 unsigned long tExp = 0; // current experiment time since start (total)
 unsigned long tInt = 0; // current time since start of experiment interval
 
-unsigned long tScratch = 0; 
+unsigned long tScratch = 0;
 
 // current interval during experiment
 byte currInterval = 0; // 0 = not started / NA, 1 = cleaning, 2 = deposition, 3 = 1st exp int., 4 = 2nd exp int., 5 = complete
@@ -208,9 +209,9 @@ Experiment e; //current experiment config
 char charRcvd;
 /*
  * setup()
- * 
+ *
  * Executes onnce board boot for setup
- * 
+ *
  * Initializes IO, starts communications
  */
 void setup() {
@@ -314,7 +315,7 @@ void setup() {
  * called by TMR2 overflow
  * raises flag in main loop to start DAC
  */
-ISR(TIMER2_OVF_vect)        
+ISR(TIMER2_OVF_vect)
 {
   TCNT2 = timer2_preload;   // preload timer
   startDAC = true;
@@ -333,7 +334,7 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine
   } else if (expStarted == WQM_EXP_RUNNING) {
     PS_startADC = false;
     WQM_startADC = true;
-    //Calculate time used for switched Cl measurements    
+    //Calculate time used for switched Cl measurements
     switchTimeACC = switchTimeACC + (1000 / WQM_SAMP_RATE);
     if (switchTimeACC > switchTimePRE) {
       switchTimeACC = switchTimeACC - switchTimePRE;
@@ -348,8 +349,8 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine
 
 /*
  * Main program execution loop
- * 1. Calculate and start DAC conversion if flag set high (interrupt) 
- * 2. Start potentiostat ADC conversion and process result if flag set high 
+ * 1. Calculate and start DAC conversion if flag set high (interrupt)
+ * 2. Start potentiostat ADC conversion and process result if flag set high
  * 3. Start WQM ADC conversion and process resul if flag set high (interrupt)
  * 4. Receive and respond to exeternal serial comms (Start/Stop experiment)
  */
@@ -416,7 +417,7 @@ void loop()
   //PS_startADC flag set  (set from interrupt (CSV) or after DAC(DPV))
   if (PS_startADC) {
     tScratch = micros();
-    
+
     if (!PS_Present && MCU_ONLY) {
       iIn = vOut;
     } else {
@@ -450,7 +451,7 @@ void loop()
       Serial.write(fillBits);
       Serial.write(13); //cr
       Serial.flush();
-    } 
+    }
     else /* debug / csv style msg */
     {
       Serial.print(dacOut);
@@ -459,7 +460,7 @@ void loop()
       Serial.write(',');
       Serial.println(iIn);
     }
-    
+
     PS_startADC = false;
     tScratch = micros() - tScratch;
     //Serial.println(tScratch);
@@ -475,7 +476,7 @@ void loop()
     }
     setClSw(ClSwState);
     wqm_led(ClSwState);
-    
+
     WQM_startADC = false;
     digitalWrite(EXT_LED,ClSwState);
   }
@@ -508,8 +509,8 @@ void loop()
 /*
  * FUNCTIONS
  */
-/* 
- * Receives potentiostat experiment command from serial port  
+/*
+ * Receives potentiostat experiment command from serial port
  * Parses data and starts experiment if valid
  */
 void receiveCmd() {
@@ -706,7 +707,7 @@ int findSubstring(int start, char *sub, int nsub, char *str, int nstr) {
 }
 
 /* Convert a series (array) of chars into an integer
- *  
+ *
  *  returns: true if successful, false if invalid / non-numeric char is in array
  */
 boolean convInt(long * vptr, char *arr, int startIndex, int stopIndex) {
@@ -739,9 +740,9 @@ boolean isNum(char c) {
 
 /*
  * Checks if experiment parameters are within max/min limits
- * 
+ *
  * Checks if parameters are within experiment specific limits, if applicable
- * 
+ *
  * returns: true if successful
  */
 boolean checkParams (int e, int np, long * par) {
@@ -1255,11 +1256,12 @@ void printExp() {
       WQM_adc2_diff_0_1 = WQM_adc2.readADC_Differential_0_1();
       delay(5);
       WQM_adc1_diff_0_1 = WQM_adc1.readADC_Differential_0_1();
+      delay(5);
+      WQM_adc2_diff_2_3 = WQM_adc2.readADC_Differential_2_3();
 
 
-      //WQM_adc2_diff_2_3 = WQM_adc2.readADC_Differential_2_3();
     } else {
-      //Simulated ADC signals for when not connected to WQM board (temp)
+      //Simulated ADC signals for when not connected to WQM board (temp) (fudges random data)
       WQM_adc1_diff_0_1 = 2000 + random(100);
       if (ClSwState) {
         WQM_adc1_diff_2_3 = -2000 + random(100);
@@ -1267,11 +1269,13 @@ void printExp() {
         WQM_adc1_diff_2_3 = 0;
       }
       WQM_adc2_diff_0_1 = 2000 + random(100);
+      WQM_adc2_diff_2_3 = 2000 + random(100);
+
     }
     voltage_pH = WQM_adc1_diff_0_1 * 0.0625; // in mV
     current_Cl = -WQM_adc1_diff_2_3 * 0.0625 / 0.0255; // in nA, feedback resistor = 500k
     V_temp = WQM_adc2_diff_0_1 * 0.03125; // in mV
-    //V_reserved = WQM_adc2_diff_2_3 * 0.03125; // in mV
+    voltage_alkalinity = WQM_adc2_diff_2_3 * 0.03125; // in mV
   }
 
   //Send WQM meas. values over serial port
@@ -1283,9 +1287,11 @@ void printExp() {
     Serial.print(" ");
     Serial.print(voltage_pH, 4);
     Serial.print(" ");
+    Serial.print(voltage_alkalinity, 4);  //Make changes in app to read the proper order #TODO
+    Serial.print(" ");
     Serial.print(current_Cl, 4);
     Serial.print(" ");
-    Serial.print((float)switchTimeACC / 1000.0, 1);
+    Serial.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
     Serial.print(" ");
     if (ClSwState) {
       Serial.print("1");
@@ -1305,5 +1311,3 @@ void printExp() {
   void wqm_led(boolean b) {
     digitalWrite(WQM_LED, b);
   }
-
-
