@@ -109,7 +109,7 @@ float voltage_pH = 0.0; //Voltage in mV
 float current_Cl = 0.0; //Current in nA
 float temperature = 0.0; //Temperature in deg. C
 float V_temp = 0.0; //Voltage for temperature calculation
-float voltage_alkalinity = 0.0; //Voltage for temperature calculation
+float voltage_alkalinity = 0.0; //Voltage for alkalinity calculation
 
 //Current time in seconds since start of free Cl measurement collection (milliseconds)
 long switchTimeACC = 0;
