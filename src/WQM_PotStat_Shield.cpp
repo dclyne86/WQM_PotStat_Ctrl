@@ -1287,9 +1287,9 @@ void printExp() {
     Serial.print(" ");
     Serial.print(voltage_pH, 4);
     Serial.print(" ");
-    Serial.print(voltage_alkalinity, 4);  //Make changes in app to read the proper order #TODO
-    Serial.print(" ");
     Serial.print(current_Cl, 4);
+    Serial.print(" ");
+    Serial.print(voltage_alkalinity, 4);  //Make changes in app to read the proper order #TODO
     Serial.print(" ");
     Serial.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
     Serial.print(" ");
