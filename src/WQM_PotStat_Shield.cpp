@@ -249,7 +249,7 @@ void setup() {
     Serial.println();
     Serial.println("Increasing MCU baud rate to 115200");
     delay(500);
-    Serial.begin(115200);
+    Serial.begin(9600);
     delay(200);
     Serial.println("Master Baud Rate: = 115200");
 
@@ -1256,8 +1256,8 @@ void printExp() {
       WQM_adc2_diff_0_1 = WQM_adc2.readADC_Differential_0_1();
       delay(5);
       WQM_adc1_diff_0_1 = WQM_adc1.readADC_Differential_0_1();
-      delay(5);
-      WQM_adc2_diff_2_3 = WQM_adc2.readADC_Differential_2_3();
+     // delay(5);
+      WQM_adc2_diff_2_3 = 5000; //WQM_adc2.readADC_Differential_2_3();
 
 
     } else {
