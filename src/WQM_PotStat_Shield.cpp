@@ -1256,8 +1256,8 @@ void printExp() {
       WQM_adc2_diff_0_1 = WQM_adc2.readADC_Differential_0_1();
       delay(5);
       WQM_adc1_diff_0_1 = WQM_adc1.readADC_Differential_0_1();
-     // delay(5);
-      WQM_adc2_diff_2_3 = 5000; //WQM_adc2.readADC_Differential_2_3();
+      delay(5);
+      WQM_adc2_diff_2_3 =  WQM_adc1_diff_2_3;//WQM_adc2.readADC_Differential_2_3();
 
 
     } else {
