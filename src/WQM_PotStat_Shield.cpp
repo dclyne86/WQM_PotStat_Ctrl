@@ -4,6 +4,11 @@
 #include <SoftwareSerial.h> // for BlueTooth
 #include "Adafruit_ADS1015.h"
 
+#include <SPI.h>
+#include "Adafruit_BLE.h"
+#include "Adafruit_BluefruitLE_SPI.h"
+#include "Adafruit_BluefruitLE_UART.h"
+
 //Project files
 #include "WQM_PotStat_Shield.h"
 
@@ -79,6 +84,7 @@
    D1   1   TX1, Serial TX, HW Serial
    D2   2   RX2, Serial RX, SW Serial
    D3   3   TX2, Serial TX, SW Serial
+
 */
 
 /*
@@ -93,11 +99,15 @@ boolean PS_Present = false; //PotStat Shield Present
 
 // BlueTooth
 // [BT] <-->  [Arduino]
-// VCC  <-->  3.3V
+// VCC  <-->  3.3V (5 V for Adafruit Bluetooth UART Friend)
 // GND  <-->  GND
 // TxD  <-->  pin D2
 // RxD  <-->  pin D3
-SoftwareSerial Serial_BT(2,3);
+// CTS  <-->  pin A1 (D15) Serial For Adafruit Bluetooth Module
+SoftwareSerial bluefruitSS = SoftwareSerial(BLUEFRUIT_SWUART_TXD_PIN, BLUEFRUIT_SWUART_RXD_PIN);
+
+Adafruit_BluefruitLE_UART ble(bluefruitSS, BLUEFRUIT_UART_MODE_PIN,
+                              BLUEFRUIT_UART_CTS_PIN, BLUEFRUIT_UART_RTS_PIN);
 
 // WQM Variables
 Adafruit_ADS1115 WQM_adc1(0x48);
@@ -109,7 +119,7 @@ float voltage_pH = 0.0; //Voltage in mV
 float current_Cl = 0.0; //Current in nA
 float temperature = 0.0; //Temperature in deg. C
 float V_temp = 0.0; //Voltage for temperature calculation
-float voltage_alkalinity = 0.0; //Voltage for alkalinity calculation
+float current_Alk = 0.0; //Voltage for alkalinity calculation
 
 //Current time in seconds since start of free Cl measurement collection (milliseconds)
 long switchTimeACC = 0;
@@ -230,59 +240,85 @@ void setup() {
   delay(250);
 
   //Check for boards present
-  WQM_Present = digitalRead(WQM_BrdPresent) ? false : true;
+  WQM_Present = true; //digitalRead(WQM_BrdPresent) ? false : true;
   PS_Present = digitalRead(PS_BrdPresent) ? false : true;
 
   delay(5000);
   //Initialize serial port - setup BLE shield
-    Serial.begin(9600);
-    while (!Serial) {
-      ; // wait for serial port to connect. Needed for native USB port only
-    }
-    Serial.println("Master Baud Rate: = 9600");
-    Serial.println("Setting BLE shield comms settings, name/baud rate(115200)");
-    delay(500);
-    Serial.print("AT+NAMEIMWQMS"); //Set board name
-    delay(250);
-    Serial.print("AT+BAUD4"); //Set baud rate to 115200 on BLE Shield
-    delay(250);
-    Serial.println();
-    Serial.println("Increasing MCU baud rate to 115200");
-    delay(500);
-    Serial.begin(9600);
-    delay(200);
-    Serial.println("Master Baud Rate: = 115200");
+
+  bluefruitSS.begin(9600);
+
+
+ 
+  if (ble.sendCommandCheckOK("AT+GAPDEVNAME=IMWQMS"))
+  {
+    bluefruitSS.println(F("NAME CHANGED"));
+  }
+
+  /* Disable command echo from Bluefruit */
+  ble.echo(false);
+
+  bluefruitSS.println("Requesting Bluefruit info:");
+  /* Print Bluefruit information */
+  ble.info();
+
+  bluefruitSS.println(F("This is from the WQM_Pot_Stat_Shield firmware"));
+  bluefruitSS.println(F("Send characters to say hi (Not really)"));
+  bluefruitSS.println();
+
+  ble.verbose(false); // debug info is a little annoying after this point!
+
+  /* Wait for connection */
+
+  bluefruitSS.println(F("******************************"));
+
+  // Set module to DATA mode
+
+  bluefruitSS.println(F("******************************"));
+
+  //bluefruitSS.println("Master Baud Rate: = 9600");
+  bluefruitSS.println("Setting BLE shield comms settings, name/baud rate(115200)");
+  delay(250);
+  bluefruitSS.println();
+  bluefruitSS.println("Increasing MCU baud rate to 115200");
+  delay(500);
+  //bluefruitSS.begin(115200);
+  delay(200);
+  bluefruitSS.println("Master Baud Rate: = 115200");
+  
+
+  
 
   //Initialize I2C
   Wire.begin(); //Start I2C
   Wire.setClock(400000L);
 
+  if (PS_Present)
+    {
+      //Setup PotStat outputs
+      //Gain select outputs
+      pinMode(PS_MUX0, OUTPUT);
+      pinMode(PS_MUX1, OUTPUT);
+      //PotStat LEDs
+      pinMode(PS_LED1, OUTPUT);
+      pinMode(PS_LED2, OUTPUT);
+      //WE digital switch enable
+      pinMode(PS_WE_SwEn, OUTPUT);
+      digitalWrite(PS_LED1, ON);
+      digitalWrite(PS_LED2, ON);
+      digitalWrite(PS_WE_SwEn, ON); //todo: update to only turn on during experiment
+      PS_adc1.begin();
 
-  if (PS_Present) {
-    //Setup PotStat outputs
-    //Gain select outputs
-    pinMode(PS_MUX0, OUTPUT);
-    pinMode(PS_MUX1, OUTPUT);
-    //PotStat LEDs
-    pinMode(PS_LED1, OUTPUT);
-    pinMode(PS_LED2, OUTPUT);
-    //WE digital switch enable
-    pinMode(PS_WE_SwEn, OUTPUT);
-    digitalWrite(PS_LED1, ON);
-    digitalWrite(PS_LED2, ON);
-    digitalWrite(PS_WE_SwEn, ON); //todo: update to only turn on during experiment
-    PS_adc1.begin();
+      //default to gain range 2 (10k, 4X PGA gain)
+      setGain(2);
 
-    //default to gain range 2 (10k, 4X PGA gain)
-    setGain(2);
+      // Reset DAC output
+      writeDAC(DACVAL0); //MAX5217
 
-    // Reset DAC output
-    writeDAC(DACVAL0); //MAX5217
+      clearExp(); //clear experiment config
+      defCVExp(); //set default exp config
 
-    clearExp(); //clear experiment config
-    defCVExp(); //set default exp config
-
-    sendInfo("PotStat Setup complete");
+      sendInfo("PotStat Setup complete");
   } else {
     sendInfo("No PotStat board detected");
   }
@@ -403,7 +439,7 @@ void loop()
 
     } else {
       //experiment completed
-      Serial.println("no");
+      bluefruitSS.println("no");
       finishExperiment();
       sendInfo("Experiment Complete");
     }
@@ -434,36 +470,36 @@ void loop()
       uint8_t fillBits = 0;
       if (PS_adc1_diff_0_1 < 0) fillBits = 0XFF;
 
-      Serial.write('B'); //signify new data follows
-      Serial.write(13); //cr
-      Serial.flush();
+      bluefruitSS.write('B'); //signify new data follows
+      bluefruitSS.write(13); //cr
+      bluefruitSS.flush();
       //Send Data
 
       //DAC output
-      Serial.write((uint8_t)(dacOut & 0XFF));
-      Serial.write((uint8_t)(dacOut >> 8));
-      //Serial.print(dacOut);
+      bluefruitSS.write((uint8_t)(dacOut & 0XFF));
+      bluefruitSS.write((uint8_t)(dacOut >> 8));
+      //bluefruitSS.print(dacOut);
 
       //ADC input
-      Serial.write((uint8_t)(PS_adc1_diff_0_1 & 0XFF));
-      Serial.write((uint8_t)(PS_adc1_diff_0_1 >> 8));
-      Serial.write(fillBits);
-      Serial.write(fillBits);
-      Serial.write(13); //cr
-      Serial.flush();
+      bluefruitSS.write((uint8_t)(PS_adc1_diff_0_1 & 0XFF));
+      bluefruitSS.write((uint8_t)(PS_adc1_diff_0_1 >> 8));
+      bluefruitSS.write(fillBits);
+      bluefruitSS.write(fillBits);
+      bluefruitSS.write(13); //cr
+      bluefruitSS.flush();
     }
     else /* debug / csv style msg */
     {
-      Serial.print(dacOut);
-      Serial.write(',');
-      Serial.print(vOut);
-      Serial.write(',');
-      Serial.println(iIn);
+      bluefruitSS.print(dacOut);
+      bluefruitSS.write(',');
+      bluefruitSS.print(vOut);
+      bluefruitSS.write(',');
+      bluefruitSS.println(iIn);
     }
 
     PS_startADC = false;
     tScratch = micros() - tScratch;
-    //Serial.println(tScratch);
+    //bluefruitSS.println(tScratch);
   }
   //WQM_startADC flag set  (set from interrupt)
   if (WQM_startADC) {
@@ -725,8 +761,8 @@ boolean convInt(long * vptr, char *arr, int startIndex, int stopIndex) {
       //if leading char is minus sign, negate the total
       scratch = scratch * -1;
     } else {
-      //invalid / non-numeric char
-      return false;
+          //invalid / non-numeric char
+          return false;
     }
   }
   *vptr = scratch;
@@ -854,13 +890,13 @@ boolean setConfig (int experiment, long * par) {
 //Add error prefix text to message and send to user
 size_t sendError(String s) {
   //return 0;
-  return Serial.println(String("Error: " + s));
+  return bluefruitSS.println(String("Error: " + s));
 }
 
 //Add info prefix text to message and send to user
 size_t sendInfo(String s) {
   //return 0;
-  return Serial.println(String("Info: " + s));
+  return bluefruitSS.println(String("Info: " + s));
 }
 
 
@@ -885,7 +921,7 @@ float calcOutput(unsigned long ti, unsigned int c) {
     vout = 0.0;
   }
   timeEx = micros() - timeEx;
-  //Serial.println(timeEx);
+  //bluefruitSS.println(timeEx);
   return vout;
 }
 
@@ -952,7 +988,7 @@ void calcInterval(unsigned long t) {
         //new interval, reset sync ADC
         syncADCcompleteFWD = false;
         syncADCcompleteREV = false;
-        if (prevInterval == INTERVAL_EXP2) Serial.println("S"); //send new scan char, TODO: update when DPV added
+        if (prevInterval == INTERVAL_EXP2) bluefruitSS.println("S"); //send new scan char, TODO: update when DPV added
       }
       currInterval = INTERVAL_EXP1;
     } else {
@@ -961,7 +997,7 @@ void calcInterval(unsigned long t) {
     }
   }
   timeEx = micros() - timeEx;
-  //Serial.println(timeEx);
+  //bluefruitSS.println(timeEx);
 }
 
 /* Issue write command to DAC via I2C, return without writing if no shield (potentiostat) present */
@@ -1218,23 +1254,23 @@ void defDPVExp() {
 
 //Print current experiment settings to serial port
 void printExp() {
-  Serial.println(String("tClean: " + String(e.tClean)));
-  Serial.println(String("vClean: " + String(e.vClean)));
-  Serial.println(String("tDep: " + String(e.tDep)));
-  Serial.println(String("vDep: " + String(e.vDep)));
-  Serial.println(String("tSwitch: " + String(e.tSwitch)));
-  Serial.println(String("tOffset: " + String(e.tOffset)));
-  Serial.println(String("vStart[0]: " + String(e.vStart[0])));
-  Serial.println(String("vStart[1]: " + String(e.vStart[1])));
-  Serial.println(String("vSlope[0]*1E9: " + String(e.vSlope[0]*1E9)));
-  Serial.println(String("vSlope[1]*1E9: " + String(e.vSlope[1]*1E9)));
-  Serial.println(String("tCycle: " + String(e.tCycle)));
-  Serial.println(String("offset: " + String(e.offset)));
-  Serial.println(String("cycles: " + String(e.cycles)));
-  Serial.println(String("sampRate: " + String(e.sampRate)));
-  Serial.println(String("syncSamplingEN: " + String(e.syncSamplingEN)));
-  Serial.println(String("tSyncSample: " + String(e.tSyncSample)));
-  Serial.println(String("gain: " + String(e.gain)));
+  bluefruitSS.println(String("tClean: " + String(e.tClean)));
+  bluefruitSS.println(String("vClean: " + String(e.vClean)));
+  bluefruitSS.println(String("tDep: " + String(e.tDep)));
+  bluefruitSS.println(String("vDep: " + String(e.vDep)));
+  bluefruitSS.println(String("tSwitch: " + String(e.tSwitch)));
+  bluefruitSS.println(String("tOffset: " + String(e.tOffset)));
+  bluefruitSS.println(String("vStart[0]: " + String(e.vStart[0])));
+  bluefruitSS.println(String("vStart[1]: " + String(e.vStart[1])));
+  bluefruitSS.println(String("vSlope[0]*1E9: " + String(e.vSlope[0]*1E9)));
+  bluefruitSS.println(String("vSlope[1]*1E9: " + String(e.vSlope[1]*1E9)));
+  bluefruitSS.println(String("tCycle: " + String(e.tCycle)));
+  bluefruitSS.println(String("offset: " + String(e.offset)));
+  bluefruitSS.println(String("cycles: " + String(e.cycles)));
+  bluefruitSS.println(String("sampRate: " + String(e.sampRate)));
+  bluefruitSS.println(String("syncSamplingEN: " + String(e.syncSamplingEN)));
+  bluefruitSS.println(String("tSyncSample: " + String(e.tSyncSample)));
+  bluefruitSS.println(String("gain: " + String(e.gain)));
 }
 
 //WQM FUNCTIONS:
@@ -1257,7 +1293,7 @@ void printExp() {
       delay(5);
       WQM_adc1_diff_0_1 = WQM_adc1.readADC_Differential_0_1();
      // delay(5);
-      WQM_adc2_diff_2_3 = 5000; //WQM_adc2.readADC_Differential_2_3();
+      WQM_adc2_diff_2_3 = WQM_adc2.readADC_Differential_2_3();
 
 
     } else {
@@ -1275,31 +1311,31 @@ void printExp() {
     voltage_pH = WQM_adc1_diff_0_1 * 0.0625; // in mV
     current_Cl = -WQM_adc1_diff_2_3 * 0.0625 / 0.0255; // in nA, feedback resistor = 500k
     V_temp = WQM_adc2_diff_0_1 * 0.03125; // in mV
-    voltage_alkalinity = WQM_adc2_diff_2_3 * 0.03125; // in mV
+    current_Alk = -WQM_adc2_diff_2_3 * 0.0625 / 0.0255; // in nA, feedback resistor = 500k
   }
 
   //Send WQM meas. values over serial port
   void sendValues() {
 
-    // Send data to Serial port
-    Serial.print(" ");
-    Serial.print(V_temp, 4);
-    Serial.print(" ");
-    Serial.print(voltage_pH, 4);
-    Serial.print(" ");
-    Serial.print(current_Cl, 4);
-    Serial.print(" ");
-    Serial.print(voltage_alkalinity, 4);  //Make changes in app to read the proper order #TODO
-    Serial.print(" ");
-    Serial.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
-    Serial.print(" ");
+    // Send data to bluefruitSS port
+    bluefruitSS.print(" ");
+    bluefruitSS.print(V_temp, 4);
+    bluefruitSS.print(" ");
+    bluefruitSS.print(voltage_pH, 4);
+    bluefruitSS.print(" ");
+    bluefruitSS.print(current_Cl, 4);
+    bluefruitSS.print(" ");
+    bluefruitSS.print(current_Alk, 4);  //Make changes in app to read the proper order #TODO
+    bluefruitSS.print(" ");
+    bluefruitSS.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
+    bluefruitSS.print(" ");
     if (ClSwState) {
-      Serial.print("1");
+      bluefruitSS.print("1");
     } else {
-      Serial.print("0");
+      bluefruitSS.print("0");
     }
-    Serial.print(" ");
-    Serial.print("\n");
+    bluefruitSS.print(" ");
+    bluefruitSS.print("\n");
   }
 
   //Set free Cl switch ON or OFF

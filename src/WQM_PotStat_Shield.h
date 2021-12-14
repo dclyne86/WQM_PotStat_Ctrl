@@ -2,12 +2,23 @@
 #define PS_STD_MSG true //true = standard msg format (raw data) for transmission to application, false = comma seperated format
 //#define CONFIG_COMMS_USB true //true = communicate serial messages over USB and bluetooth
 
+#define BLUEFRUIT_SWUART_RXD_PIN 3  // Required for software serial! With Adafruit BT module
+#define BLUEFRUIT_SWUART_TXD_PIN 2 // Required for software serial!
+#define BLUEFRUIT_UART_CTS_PIN 15  // Required for software serial!
+#define BLUEFRUIT_UART_RTS_PIN 16  // Required for software serial!
+
+#define VERBOSE_MODE true // Bluetooth specifications; If set to 'true' enables debug output
+#define MODE_LED_BEHAVIOUR "MODE"
+#define FACTORYRESET_ENABLE 1
+
+#define BLUEFRUIT_UART_RTS_PIN -1
+#define BLUEFRUIT_UART_MODE_PIN -1
 
 #define WQM_LED 4
 #define WQM_ClSwEn 5
 #define WQM_BrdPresent 11
 
-#define PS_LED1 6
+#define PS_LED1 6  
 #define PS_LED2 7
 #define PS_MUX0 8
 #define PS_MUX1 9
