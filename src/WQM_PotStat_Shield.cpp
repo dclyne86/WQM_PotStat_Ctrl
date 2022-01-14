@@ -80,10 +80,10 @@
    A0   14  O:Ext. Led (if present)
    SDA  18  I2C SDA, comms to ADCs/DAC
    SCL  19  I2C SCL, comms to ADCs/DAC
-   D0   0   RX1, bluetooth RX, HW bluetooth
-   D1   1   TX1, bluetooth TX, HW bluetooth
-   D2   2   RX2, bluetooth RX, SW bluetooth
-   D3   3   TX2, bluetooth TX, SW bluetooth
+   D0   0   RX1, Serial RX, HW Serial
+   D1   1   TX1, Serial TX, HW Serial
+   D2   2   RX2, Serial RX, SW Serial
+   D3   3   TX2, Serial TX, SW Serial
 
 */
 
@@ -103,12 +103,13 @@ boolean PS_Present = false; //PotStat Shield Present
 // GND  <-->  GND
 // TxD  <-->  pin D2
 // RxD  <-->  pin D3
-// CTS  <-->  pin A1 (D15) bluetooth For Adafruit Bluetooth Module
-//SoftwarebSerial bluetooth = SoftwareSerial(BLUEFRUIT_SWUART_TXD_PIN, BLUEFRUIT_SWUART_RXD_PIN);
-SoftwareSerial bluetooth(2, 3);
+// CTS  <-->  pin A1 (D15) Serial For Adafruit Bluetooth Module
+//SoftwareSerial Serial = SoftwareSerial(BLUEFRUIT_SWUART_TXD_PIN, BLUEFRUIT_SWUART_RXD_PIN);
+//SoftwareSerial Serial_BT.BLUEFRUIT_SWUART_RXD_PIN, BLUEFRUIT_SWUART_TXD_PIN);
+SoftwareSerial Serial_BT(BLUEFRUIT_SWUART_RXD_PIN, BLUEFRUIT_SWUART_TXD_PIN);
 
-//  Adafruit_BluefruitLE_UART ble(bluetooth, BLUEFRUIT_UART_MODE_PIN,
-//                              BLUEFRUIT_UART_CTS_PIN, BLUEFRUIT_UART_RTS_PIN);
+  //  Adafruit_BluefruitLE_UART ble(Serial, BLUEFRUIT_UART_MODE_PIN,
+    //                              BLUEFRUIT_UART_CTS_PIN, BLUEFRUIT_UART_RTS_PIN);
 
 // WQM Variables
 Adafruit_ADS1115 WQM_adc1(0x48);
@@ -247,59 +248,50 @@ void setup() {
   delay(5000);
   //Initialize serial port - setup BLE shield
 
-  bluetooth.begin(9600);
-  //bluetooth.begin(115200);
+  Serial.begin(9600);
+  Serial_BT.begin(115200);
+  Serial_BT.print("WOOOTT");
 
-  bluetooth.println("Master Baud Rate: = 9600");
-  bluetooth.println("Setting BLE shield comms settings, name/baud rate(115200)");
-  delay(500);
-  bluetooth.print("AT+NAMEIMWQMS"); //Set board name
-  delay(250);
-  bluetooth.print("AT+BAUD4"); //Set baud rate to 115200 on BLE Shield
-  delay(250);
-  bluetooth.println();
-  bluetooth.println("Increasing MCU baud rate to 115200");
-  delay(200);
-  Serial.println("Master Baud Rate: = 115200");
 
-  // if (ble.sendCommandCheckOK("AT+GAPDEVNAME=IMWQMS"))
+ 
+ // if (ble.sendCommandCheckOK("AT+GAPDEVNAME=IMWQMS"))
   //{
-  // bluetooth.println(F("NAME CHANGED"));
+   // Serial.println(F("NAME CHANGED"));
   //}
 
   /* Disable command echo from Bluefruit */
   //ble.echo(false);
 
-  bluetooth.println("Requesting Bluefruit info:");
+  Serial_BT.println("Requesting Bluefruit info:");
   /* Print Bluefruit information */
   //ble.info();
 
-  bluetooth.println(F("This is from the WQM_Pot_Stat_Shield firmware"));
-  bluetooth.println(F("Send characters to say hi (Not really)"));
-  bluetooth.println();
+  Serial_BT.println(F("This is from the WQM_Pot_Stat_Shield firmware"));
+  Serial_BT.println(F("Send characters to say hi (Not really)"));
+  Serial_BT.println();
 
   //ble.verbose(false); // debug info is a little annoying after this point!
 
   /* Wait for connection */
 
-  bluetooth.println(F("******************************"));
+  Serial_BT.println(F("******************************"));
 
   // Set module to DATA mode
 
-  bluetooth.println(F("******************************"));
+  Serial_BT.println(F("******************************"));
 
-  //bluetooth.println("Master Baud Rate: = 9600");
-  bluetooth.println("Setting BLE shield comms settings, name/baud rate(115200)");
+  //Serial_BT.println("Master Baud Rate: = 9600");
+  Serial_BT.println("Setting BLE shield comms settings, name/baud rate(115200)");
   delay(250);
-  bluetooth.println();
-  bluetooth.println("Increasing MCU baud rate to 115200");
+  Serial_BT.println();
+  Serial_BT.println("Increasing MCU baud rate to 115200");
   delay(500);
-  //bluetooth.begin(115200);
+  //Serial_BT.begin(115200);
   delay(200);
-  bluetooth.println("Master Baud Rate: = 115200");
+  Serial_BT.println("Master Baud Rate: = 115200");
+  
 
-
-
+  
 
   //Initialize I2C
   Wire.begin(); //Start I2C
@@ -426,8 +418,8 @@ void loop()
         long tdac = micros();
         writeDAC(dacOut); //MAX5217
         tdac = micros() - tdac;
-        //bluetooth.print("Set DAC et: ");
-        //bluetooth.println(tdac);
+        //Serial_BT.print("Set DAC et: ");
+        //Serial_BT.println(tdac);
       } else {
         sendError("DAC out of range");
         //dac.setVoltage(DACVAL0, false);
@@ -451,7 +443,7 @@ void loop()
 
     } else {
       //experiment completed
-      bluetooth.println("no");
+      Serial_BT.println("no");
       finishExperiment();
       sendInfo("Experiment Complete");
     }
@@ -459,8 +451,8 @@ void loop()
 
     //execution time:
     tScratch = micros() - tScratch;
-    //bluetooth.print("Start DAC Total et: ");
-    //bluetooth.println(tScratch);
+    //Serial_BT.print("Start DAC Total et: ");
+    //Serial_BT.println(tScratch);
   }
   //PS_startADC flag set  (set from interrupt (CSV) or after DAC(DPV))
   if (PS_startADC) {
@@ -482,36 +474,36 @@ void loop()
       uint8_t fillBits = 0;
       if (PS_adc1_diff_0_1 < 0) fillBits = 0XFF;
 
-      bluetooth.write('B'); //signify new data follows
-      bluetooth.write(13); //cr
-      bluetooth.flush();
+      Serial_BT.write('B'); //signify new data follows
+      Serial_BT.write(13); //cr
+      Serial_BT.flush();
       //Send Data
 
       //DAC output
-      bluetooth.write((uint8_t)(dacOut & 0XFF));
-      bluetooth.write((uint8_t)(dacOut >> 8));
-      //bluetooth.print(dacOut);
+      Serial_BT.write((uint8_t)(dacOut & 0XFF));
+      Serial_BT.write((uint8_t)(dacOut >> 8));
+      //Serial_BT.print(dacOut);
 
       //ADC input
-      bluetooth.write((uint8_t)(PS_adc1_diff_0_1 & 0XFF));
-      bluetooth.write((uint8_t)(PS_adc1_diff_0_1 >> 8));
-      bluetooth.write(fillBits);
-      bluetooth.write(fillBits);
-      bluetooth.write(13); //cr
-      bluetooth.flush();
+      Serial_BT.write((uint8_t)(PS_adc1_diff_0_1 & 0XFF));
+      Serial_BT.write((uint8_t)(PS_adc1_diff_0_1 >> 8));
+      Serial_BT.write(fillBits);
+      Serial_BT.write(fillBits);
+      Serial_BT.write(13); //cr
+      Serial_BT.flush();
     }
     else /* debug / csv style msg */
     {
-      bluetooth.print(dacOut);
-      bluetooth.write(',');
-      bluetooth.print(vOut);
-      bluetooth.write(',');
-      bluetooth.println(iIn);
+      Serial_BT.print(dacOut);
+      Serial_BT.write(',');
+      Serial_BT.print(vOut);
+      Serial_BT.write(',');
+      Serial_BT.println(iIn);
     }
 
     PS_startADC = false;
     tScratch = micros() - tScratch;
-    //bluetooth.println(tScratch);
+    //Serial_BT.println(tScratch);
   }
   //WQM_startADC flag set  (set from interrupt)
   if (WQM_startADC) {
@@ -533,12 +525,12 @@ void loop()
      Respond to serial communications
   */
   /*
-  if (bluetooth.available() > 0) {
-    charRcvd = bluetooth.read();
+  if (Serial_BT.available() > 0) {
+    charRcvd = Serial_BT.read();
     //check if experiment started
     if (expStarted == 0 && charRcvd == '!') {
       //handshake received, reply and prepare to read command
-      bluetooth.print("C");
+      Serial_BT.print("C");
       led(ON);
       //receive and parse command
       receiveCmd();
@@ -569,13 +561,13 @@ void receiveCmd() {
   char cmd[MAX_CMD_LENGTH];
   memset(cmd, 0, sizeof(cmd));
   int nReceived = -1;
-  bluetooth.setTimeout(2000);
+  Serial_BT.setTimeout(2000);
   while (receiving && (millis() - rxStart) < 20000) {
-    if (bluetooth.available() > 0) {
+    if (Serial_BT.available() > 0) {
       //data has arrived, check for leading/start char ('<')
-      if (bluetooth.read() == '<') {
+      if (Serial_BT.read() == '<') {
         //leading char correct, check remaining chars
-        nReceived = bluetooth.readBytesUntil('>', cmd, MAX_CMD_LENGTH);
+        nReceived = Serial_BT.readBytesUntil('>', cmd, MAX_CMD_LENGTH);
         if (nReceived > 0 && cmd[nReceived - 1] == '/' ) {
           //command start/stop chars valid; parse cmd data
           //cmd[nReceived - 1] = 0;
@@ -902,13 +894,13 @@ boolean setConfig (int experiment, long * par) {
 //Add error prefix text to message and send to user
 size_t sendError(String s) {
   //return 0;
-  return bluetooth.println(String("Error: " + s));
+  return Serial_BT.println(String("Error: " + s));
 }
 
 //Add info prefix text to message and send to user
 size_t sendInfo(String s) {
   //return 0;
-  return bluetooth.println(String("Info: " + s));
+  return Serial_BT.println(String("Info: " + s));
 }
 
 
@@ -933,7 +925,7 @@ float calcOutput(unsigned long ti, unsigned int c) {
     vout = 0.0;
   }
   timeEx = micros() - timeEx;
-  //bluetooth.println(timeEx);
+  //Serial_BT.println(timeEx);
   return vout;
 }
 
@@ -959,7 +951,7 @@ uint16_t scaleOutput(float in) {
     }
   }
   timeEx = micros() - timeEx;
-  //bluetooth.println(timeEx);
+  //Serial_BT.println(timeEx);
   return scaled;
 }
 
@@ -1000,7 +992,7 @@ void calcInterval(unsigned long t) {
         //new interval, reset sync ADC
         syncADCcompleteFWD = false;
         syncADCcompleteREV = false;
-        if (prevInterval == INTERVAL_EXP2) bluetooth.println("S"); //send new scan char, TODO: update when DPV added
+        if (prevInterval == INTERVAL_EXP2) Serial.println("S"); //send new scan char, TODO: update when DPV added
       }
       currInterval = INTERVAL_EXP1;
     } else {
@@ -1009,7 +1001,7 @@ void calcInterval(unsigned long t) {
     }
   }
   timeEx = micros() - timeEx;
-  //bluetooth.println(timeEx);
+  //Serial.println(timeEx);
 }
 
 /* Issue write command to DAC via I2C, return without writing if no shield (potentiostat) present */
@@ -1266,23 +1258,23 @@ void defDPVExp() {
 
 //Print current experiment settings to serial port
 void printExp() {
-  bluetooth.println(String("tClean: " + String(e.tClean)));
-  bluetooth.println(String("vClean: " + String(e.vClean)));
-  bluetooth.println(String("tDep: " + String(e.tDep)));
-  bluetooth.println(String("vDep: " + String(e.vDep)));
-  bluetooth.println(String("tSwitch: " + String(e.tSwitch)));
-  bluetooth.println(String("tOffset: " + String(e.tOffset)));
-  bluetooth.println(String("vStart[0]: " + String(e.vStart[0])));
-  bluetooth.println(String("vStart[1]: " + String(e.vStart[1])));
-  bluetooth.println(String("vSlope[0]*1E9: " + String(e.vSlope[0]*1E9)));
-  bluetooth.println(String("vSlope[1]*1E9: " + String(e.vSlope[1]*1E9)));
-  bluetooth.println(String("tCycle: " + String(e.tCycle)));
-  bluetooth.println(String("offset: " + String(e.offset)));
-  bluetooth.println(String("cycles: " + String(e.cycles)));
-  bluetooth.println(String("sampRate: " + String(e.sampRate)));
-  bluetooth.println(String("syncSamplingEN: " + String(e.syncSamplingEN)));
-  bluetooth.println(String("tSyncSample: " + String(e.tSyncSample)));
-  bluetooth.println(String("gain: " + String(e.gain)));
+  Serial.println(String("tClean: " + String(e.tClean)));
+  Serial.println(String("vClean: " + String(e.vClean)));
+  Serial.println(String("tDep: " + String(e.tDep)));
+  Serial.println(String("vDep: " + String(e.vDep)));
+  Serial.println(String("tSwitch: " + String(e.tSwitch)));
+  Serial.println(String("tOffset: " + String(e.tOffset)));
+  Serial.println(String("vStart[0]: " + String(e.vStart[0])));
+  Serial.println(String("vStart[1]: " + String(e.vStart[1])));
+  Serial.println(String("vSlope[0]*1E9: " + String(e.vSlope[0]*1E9)));
+  Serial.println(String("vSlope[1]*1E9: " + String(e.vSlope[1]*1E9)));
+  Serial.println(String("tCycle: " + String(e.tCycle)));
+  Serial.println(String("offset: " + String(e.offset)));
+  Serial.println(String("cycles: " + String(e.cycles)));
+  Serial.println(String("sampRate: " + String(e.sampRate)));
+  Serial.println(String("syncSamplingEN: " + String(e.syncSamplingEN)));
+  Serial.println(String("tSyncSample: " + String(e.tSyncSample)));
+  Serial.println(String("gain: " + String(e.gain)));
 }
 
 //WQM FUNCTIONS:
@@ -1329,25 +1321,25 @@ void printExp() {
   //Send WQM meas. values over serial port
   void sendValues() {
 
-    // Send data to bluetooth port
-    bluetooth.print(" ");
-    bluetooth.print(V_temp, 4);
-    bluetooth.print(" ");
-    bluetooth.print(voltage_pH, 4);
-    bluetooth.print(" ");
-    bluetooth.print(current_Cl, 4);
-    bluetooth.print(" ");
-    bluetooth.print(current_Alk, 4);  //Make changes in app to read the proper order #TODO
-    bluetooth.print(" ");
-    bluetooth.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
-    bluetooth.print(" ");
+    // Send data to Serial port
+    Serial.print(" ");
+    Serial.print(V_temp, 4);
+    Serial.print(" ");
+    Serial.print(voltage_pH, 4);
+    Serial.print(" ");
+    Serial.print(current_Cl, 4);
+    Serial.print(" ");
+    Serial.print(current_Alk, 4);  //Make changes in app to read the proper order #TODO
+    Serial.print(" ");
+    Serial.print((float)switchTimeACC / 1000.0, 1);  //Turns off the switch for free chlorine
+    Serial.print(" ");
     if (ClSwState) {
-      bluetooth.print("1");
+      Serial.print("1");
     } else {
-      bluetooth.print("0");
+      Serial.print("0");
     }
-    bluetooth.print(" ");
-    bluetooth.print("\n");
+    Serial.print(" ");
+    Serial.print("\n");
   }
 
   //Set free Cl switch ON or OFF
