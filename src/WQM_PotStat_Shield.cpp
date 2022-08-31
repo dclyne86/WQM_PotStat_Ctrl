@@ -97,7 +97,7 @@ boolean PS_Present = false; //PotStat Shield Present
 // GND  <-->  GND
 // TxD  <-->  pin D2
 // RxD  <-->  pin D3
-SoftwareSerial Serial_BT(2,3);
+SoftwareSerial Serial_BT(3,2);
 
 // WQM Variables
 Adafruit_ADS1115 WQM_adc1(0x48);
